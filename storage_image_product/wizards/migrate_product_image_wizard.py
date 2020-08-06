@@ -23,7 +23,7 @@ class MigrateProductImageWizard(models.TransientModel):
     wipe_attachments_after = fields.Boolean(default=True)
 
     def action_migrate(self):
-        domain = [("res_model", "=", "product.template"), ("res_field", "=", "image")]
+        domain = [("res_model", "=", "product.template"), ("index_content", "=", "image")]
         if self.template_ids:
             domain.append(("res_id", "=", self.template_ids.ids))
         attachments = self.env["ir.attachment"].search(domain)

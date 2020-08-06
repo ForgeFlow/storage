@@ -25,7 +25,7 @@ class MigrateProductImageWizard(models.TransientModel):
     def action_migrate(self):
         domain = [("res_model", "=", "product.template"), ("index_content", "=", "image")]
         if self.template_ids:
-            domain.append(("res_id", "=", self.template_ids.ids))
+            domain.append(("res_id", "in", self.template_ids.ids))
         attachments = self.env["ir.attachment"].search(domain)
         self.migrate_product_attachment_to_storage_image(attachments)
 

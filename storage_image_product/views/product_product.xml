@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <odoo>
-    <record id="product_kanban_view" model="ir.ui.view">
+    <!-- <record id="product_kanban_view" model="ir.ui.view">
         <field name="model">product.product</field>
         <field name="inherit_id" ref="product.product_kanban_view" />
         <field name="priority" eval="100" />
@@ -19,19 +19,19 @@
                 />
             </xpath>
         </field>
-    </record>
+    </record> -->
     <record id="product_normal_form_view" model="ir.ui.view">
         <field name="model">product.product</field>
         <field name="inherit_id" ref="product.product_normal_form_view" />
         <field name="arch" type="xml">
-            <field name="image_1920" position="replace">
+            <!-- <field name="image_1920" position="replace">
                 <field name="image_1920" invisible="True" />
                 <field
                     name="variant_image_medium_url"
                     widget="image_url"
                     class="oe_avatar"
                 />
-            </field>
+            </field> -->
             <xpath expr="//page[@name='sales']" position="after">
                 <page name="image" string="Image">
                     <p
@@ -42,7 +42,7 @@
             </xpath>
         </field>
     </record>
-    <record id="product_variant_easy_edit_view" model="ir.ui.view">
+    <!-- <record id="product_variant_easy_edit_view" model="ir.ui.view">
         <field name="model">product.product</field>
         <field name="inherit_id" ref="product.product_variant_easy_edit_view" />
         <field name="arch" type="xml">
@@ -55,5 +55,5 @@
                 />
             </field>
         </field>
-    </record>
+    </record> -->
 </odoo>

@@ -37,6 +37,7 @@
                 <group string="Name">
                     <field name="name" />
                     <field name="alt_name" />
+                    <field name="url" />
                 </group>
             </form>
         </field>

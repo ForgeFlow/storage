@@ -40,6 +40,7 @@
                 <group string="Name" name="name">
                     <field name="name" />
                     <field name="alt_name" />
+                    <field name="url" />
                 </group>
                 <notebook>
                     <page name="info" string="File Informations">

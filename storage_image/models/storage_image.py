@@ -27,6 +27,7 @@ class StorageImage(models.Model):
 
     alt_name = fields.Char(string="Alt Image name")
     file_id = fields.Many2one("storage.file", "File", required=True, ondelete="cascade")
+    url = fields.Char(related="file_id.url", help="HTTP accessible path to the file")
 
     @api.onchange("name")
     def onchange_name(self):

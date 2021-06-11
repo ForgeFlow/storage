@@ -39,7 +39,7 @@ class ProductProduct(models.Model):
                 key=lambda i: (i.sequence, i.image_id)
             )
             for image in variant_images:
-                if not (
+                if image.attribute_value_ids and not (
                     image.attribute_value_ids
                     - variant.mapped(
                         "product_template_attribute_value_ids."

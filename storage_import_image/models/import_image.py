@@ -176,12 +176,13 @@ class ProductImageImportWizard(models.Model):
             for row in reader:
                 if not row:
                     continue
-                product_identifier, tag_name, file_path = row
+                product_identifier, tag_name, file_path, attribute_value_name = row
                 lines.append(
                     {
                         product_identifier_field: product_identifier,
                         "tag_name": tag_name,
                         "file_path": file_path,
+                        "attribute_value_name": attribute_value_name,
                     }
                 )
         return lines
@@ -197,7 +198,7 @@ class ProductImageImportWizard(models.Model):
             self._get_lines(), chunksize=self._get_options().get("chunk_size")
         )
         for i, (chunk, is_last_chunk) in enumerate(chunks, 1):
-            self.with_delay().do_import(lines=chunk, last_chunk=is_last_chunk)
+            self.do_import(lines=chunk, last_chunk=is_last_chunk)
             _logger.info(
                 "Generated job for chunk nr %d. Is last: %s.",
                 i,
@@ -314,12 +315,43 @@ class ProductImageImportWizard(models.Model):
                 product_model == "product.product"
                 and prod["product_template_attribute_value_ids"]
             ):
-                attr_values = prod_tmpl_attr_value_obj.browse(
-                    prod["product_template_attribute_value_ids"]
-                )
+                if line["attribute_value_name"]:
+                    attr_values = prod_tmpl_attr_value_obj.search(
+                        [
+                            ("name", "=", line["attribute_value_name"]),
+                            (
+                                "attribute_id",
+                                "in",
+                                prod.product_tmpl_id.attribute_value_ids.mapped(
+                                    "attribute_id"
+                                ).ids,
+                            ),
+                        ]
+                    )
+                else:
+                    attr_values = prod_tmpl_attr_value_obj.browse(
+                        prod["product_template_attribute_value_ids"]
+                    )
                 img_relation_values["attribute_value_ids"] = [
                     (6, 0, attr_values.mapped("product_attribute_value_id").ids,)
                 ]
+            elif product_model == "product.template":
+                if line["attribute_value_name"]:
+                    attr_values = prod_tmpl_attr_value_obj.search(
+                        [
+                            ("name", "=", line["attribute_value_name"]),
+                            (
+                                "attribute_id",
+                                "in",
+                                prod.product_tmpl_id.attribute_value_ids.mapped(
+                                    "attribute_id"
+                                ).ids,
+                            ),
+                        ]
+                    )
+                    img_relation_values["attribute_value_ids"] = [
+                        (6, 0, attr_values.mapped("product_attribute_value_id").ids,)
+                    ]
             relation_obj.create(img_relation_values)
             report["created"].add(prod[product_identifier_field])
         report["created"] = sorted(report["created"])

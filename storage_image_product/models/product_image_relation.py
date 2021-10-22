@@ -37,7 +37,7 @@ class ProductImageRelation(models.Model):
             )
 
     def _match_variant(self, variant):
-        if self.attribute_value_ids:
+        if self.attribute_value_ids or not self.available_attribute_value_ids:
             return not bool(
                 self.attribute_value_ids
                 - variant.mapped(

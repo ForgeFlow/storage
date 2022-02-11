@@ -1,0 +1,1 @@
+odoo-addon-storage_backend @ git+https://github.com/OCA/storage@refs/pull/147/head#subdirectory=setup/storage_backend

@@ -9,6 +9,7 @@
                     <field name="product_relation_ids" mode="tree,form,kanban">
                         <tree>
                             <field name="product_tmpl_id" />
+                            <field name="available_attribute_value_ids" invisible="1" />
                             <field
                                 name="attribute_value_ids"
                                 widget="many2many_tags"
@@ -19,6 +20,7 @@
                         <form>
                             <group>
                                 <field name="product_tmpl_id" />
+                                <field name="available_attribute_value_ids" invisible="1" />
                                 <field
                                     name="attribute_value_ids"
                                     widget="many2many"

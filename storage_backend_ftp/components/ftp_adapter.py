@@ -64,27 +64,33 @@ class ImplicitFTPTLS(ftplib.FTP_TLS):
 @contextmanager
 def ftp(backend):
     security = None
-    if backend.ftp_encryption == "ftp":
-        ftp = ftplib.FTP()
-    elif backend.ftp_encryption == "tls":
-        ftp = ImplicitFTPTLS()
-        # Due to a bug into between ftplib and ssl, this part (about ssl) might not work!
-        # https://bugs.python.org/issue31727
-        security = FTP_SECURITY_TO_PROTOCOL.get(backend.ftp_security, None)
-        if isinstance(security, str):
-            raise UserError(security)
-    else:
-        raise NotImplementedError()
-    with ftp as client:
-        if security:
-            client.ssl_version = security
-        client.connect(host=backend.ftp_server, port=backend.ftp_port)
-        client.login(backend.ftp_login, backend.ftp_password)
-        if security:
-            client.prot_p()
-        if backend.ftp_passive:
-            client.set_pasv(True)
-        yield client
+    if backend.ftp_encryption in ["ftp", "tls"]:
+        if backend.ftp_encryption == "ftp":
+            ftp = ftplib.FTP()
+        elif backend.ftp_encryption == "tls":
+            ftp = ImplicitFTPTLS()
+            # Due to a bug into between ftplib and ssl, this part (about ssl) might not work!
+            # https://bugs.python.org/issue31727
+            security = FTP_SECURITY_TO_PROTOCOL.get(backend.ftp_security, None)
+            if isinstance(security, str):
+                raise UserError(security)
+        else:
+            raise NotImplementedError()
+        with ftp as client:
+            if security:
+                client.ssl_version = security
+            client.connect(host=backend.ftp_server, port=backend.ftp_port)
+            client.login(backend.ftp_login, backend.ftp_password)
+            if security:
+                client.prot_p()
+            if backend.ftp_passive:
+                client.set_pasv(True)
+            yield client
+    elif backend.ftp_encryption in ["tls_explicit"]:
+        ftp = ftplib.FTP_TLS(backend.ftp_server)
+        ftp.login(backend.ftp_login, backend.ftp_password)
+        ftp.prot_p()
+        yield ftp
 
 
 class FTPStorageBackendAdapter(Component):

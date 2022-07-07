@@ -2,3 +2,5 @@
 paramiko
 pyftpdlib
 python_slugify
+python-magic
+validators

@@ -57,8 +57,10 @@ class StorageThumbnail(models.Model):
             values = {"url": image.url, "width": size_x, "height": size_y, "fmt": fmt}
             url = image_resize_server.format(**values)
             return base64.encodebytes(requests.get(url, timeout=10).content)
-        image_process = ImageProcess(image.data)
-        return image_process.resize(max_width=size_x, max_height=size_y).image_base64()
+        image_process = ImageProcess(base64.b64decode(image.data))
+        return base64.b64encode(
+            image_process.resize(max_width=size_x, max_height=size_y).source
+        )
 
     def _get_default_backend_id(self):
         """Choose the correct backend.
@@ -70,11 +72,14 @@ class StorageThumbnail(models.Model):
             self.env, "storage.thumbnail.backend_id"
         )
 
-    @api.model
+    @api.model_create_multi
     def create(self, vals):
-        vals["file_type"] = self._default_file_type
-        if "backend_id" not in vals:
-            vals["backend_id"] = self._get_default_backend_id()
+        file_type = self._default_file_type
+        backend_id = self._get_default_backend_id()
+        for val in vals:
+            val["file_type"] = file_type
+            if "backend_id" not in val:
+                val["backend_id"] = backend_id
         return super().create(vals)
 
     def unlink(self):

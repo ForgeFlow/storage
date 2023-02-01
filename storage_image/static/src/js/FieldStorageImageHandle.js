@@ -1,11 +1,11 @@
 odoo.define("storage_image.FieldStorageImageHandle", function (require) {
     "use strict";
 
-    const registry = require("web.field_registry");
-    const relational_fields = require("web.relational_fields");
-    const utils = require("web.utils");
+    var registry = require("web.field_registry");
+    var relational_fields = require("web.relational_fields");
+    var utils = require("web.utils");
 
-    const FieldStorageImageHandle = relational_fields.FieldOne2Many.extend({
+    var FieldStorageImageHandle = relational_fields.FieldOne2Many.extend({
         /**
          * @override
          */
@@ -68,5 +68,4 @@ odoo.define("storage_image.FieldStorageImageHandle", function (require) {
     });
 
     registry.add("storage_image_handle", FieldStorageImageHandle);
-    return FieldStorageImageHandle;
 });

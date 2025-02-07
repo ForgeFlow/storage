@@ -467,3 +467,36 @@ class TestFSAttachment(TestFSAttachmentCommon):
         attachment.write({"name": "file2.txt"})
         self.assertTrue(attachment.fs_filename.startswith("file2-"))
         self.assertTrue(attachment.fs_filename.endswith(".txt"))
+
+    @mock.patch(
+        "odoo.addons.fs_attachment.models.fs_storage.FsStorage.get_read_retry_config"
+    )
+    @mock.patch(
+        "odoo.addons.fs_storage.rooted_dir_file_system.RootedDirFileSystem.open"
+    )
+    @mock.patch(
+        "odoo.addons.fs_storage.rooted_dir_file_system.RootedDirFileSystem.rename"
+    )
+    def test_read_attachment_with_retries(
+        self, mock_fs_rename, mock_fs_open, mock_get_read_retry_config
+    ):
+        """Test that _storage_file_read retries before succeeding."""
+        self.temp_backend.use_as_default_for_attachments = True
+        attachment = self.ir_attachment_model.create(
+            {"name": "file.bin", "datas": b"aGVsbG8gd29ybGQK"}
+        )
+        mock_get_read_retry_config.return_value = (2, 0.1)  # 2 retries, 0.1s delay
+        mock_fs_rename.return_value = None
+
+        self.attempts = 0
+
+        def side_effect(*args, **kwargs):
+            if self.attempts < 2:
+                self.attempts += 1
+                raise FileNotFoundError("Simulated missing file")
+            return mock.mock_open(read_data=b"test content")()
+
+        mock_fs_open.side_effect = side_effect
+        result = attachment._storage_file_read(attachment.store_fname)
+        self.assertEqual(result, b"test content")
+        self.assertEqual(self.attempts, 2)

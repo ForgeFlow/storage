@@ -2,3 +2,4 @@
 fsspec>=2024.5.0
 paramiko
 python_slugify
+tenacity

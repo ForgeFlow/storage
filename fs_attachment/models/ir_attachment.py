@@ -15,6 +15,7 @@ from contextlib import closing, contextmanager
 import fsspec  # pylint: disable=missing-manifest-dependency
 import psycopg2
 from slugify import slugify  # pylint: disable=missing-manifest-dependency
+from tenacity import RetryError, retry, stop_after_attempt, wait_fixed
 
 import odoo
 from odoo import _, api, fields, models
@@ -374,25 +375,34 @@ class IrAttachment(models.Model):
     def _storage_file_read(self, fname: str) -> bytes | None:
         """Read the file from the filesystem storage"""
         fs, storage_code, fname = self._fs_parse_store_fname(fname)
-
         read_retry_attempts, read_retry_delay = (
             self.env["fs.storage"].sudo().get_read_retry_config(storage_code)
             if storage_code
             else (0, 0.0)
         )
-        for attempt in range(read_retry_attempts + 1):
-            try:
-                with fs.open(fname, "rb") as f:
-                    return f.read()
-            except FileNotFoundError:
+
+        @retry(
+            stop=stop_after_attempt(read_retry_attempts + 1),
+            wait=wait_fixed(read_retry_delay),
+        )
+        def _read_file_attempt():
+            with fs.open(fname, "rb") as f:
+                return f.read()
+
+        try:
+            return _read_file_attempt()
+
+        except RetryError as e:
+            # Extract the original exception
+            last_exception = e.last_attempt.exception()
+            if isinstance(last_exception, FileNotFoundError):
                 _logger.info(
-                    "File not found %s on storage %s (attempt %d)",
+                    "File not found %s on storage %s after %d attemps",
                     fname,
                     storage_code,
-                    attempt + 1,
+                    read_retry_attempts,
                 )
-                time.sleep(read_retry_delay)
-            except IOError:
+            elif isinstance(last_exception, IOError):
                 _logger.info(
                     "Error reading %s on storage %s", fname, storage_code, exc_info=True
                 )

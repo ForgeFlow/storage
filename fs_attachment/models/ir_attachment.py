@@ -1031,14 +1031,27 @@ class AttachmentFileLikeAdapter(object):
                 filesystem = fsspec.filesystem("memory")
                 if "a" in self.mode or self._is_open_for_read:
                     filesystem.pipe_file(filepath, self.attachment.db_datas)
-            the_file = filesystem.open(
-                filepath,
-                mode=self.mode,
-                block_size=self.block_size,
-                cache_options=self.cache_options,
-                compression=self.compression,
-                **self.kwargs,
+            read_retry_attempts, read_retry_delay = (
+                filesystem.sudo().get_read_retry_config_self()
+                if filesystem
+                else (0, 0.0)
             )
+            for attempt in range(read_retry_attempts + 1):
+                try:
+                    the_file = filesystem.open(
+                        filepath,
+                        mode=self.mode,
+                        block_size=self.block_size,
+                        cache_options=self.cache_options,
+                        compression=self.compression,
+                        **self.kwargs,
+                    )
+                except FileNotFoundError:
+                    _logger.info(
+                        "File not found on storage (attempt %d)",
+                        attempt + 1,
+                    )
+                    time.sleep(read_retry_delay)
         else:
             # mode='w' and new_version=True and storage != 'db'
             # We must create a new file with a new name. If we are in an
@@ -1056,24 +1069,40 @@ class AttachmentFileLikeAdapter(object):
             if self.attachment._is_file_from_a_storage(new_store_fname):
                 (
                     filesystem,
-                    _storage,
+                    storage_code,
                     new_filepath,
                 ) = self.attachment._fs_parse_store_fname(new_store_fname)
-                _fs, _storage, old_filepath = self.attachment._get_fs_parts()
+                _fs, storage_code, old_filepath = self.attachment._get_fs_parts()
             else:
                 new_filepath = self.attachment._full_path(new_store_fname)
                 old_filepath = self.attachment._full_path(self.attachment.store_fname)
                 filesystem = fsspec.filesystem("file")
             if "a" in self.mode:
                 filesystem.cp_file(old_filepath, new_filepath)
-            the_file = filesystem.open(
-                new_filepath,
-                mode=self.mode,
-                block_size=self.block_size,
-                cache_options=self.cache_options,
-                compression=self.compression,
-                **self.kwargs,
+
+            read_retry_attempts, read_retry_delay = (
+                self.env["fs.storage"].sudo().get_read_retry_config(storage_code)
+                if storage_code
+                else (0, 0.0)
             )
+            for attempt in range(read_retry_attempts + 1):
+                try:
+                    the_file = filesystem.open(
+                        new_filepath,
+                        mode=self.mode,
+                        block_size=self.block_size,
+                        cache_options=self.cache_options,
+                        compression=self.compression,
+                        **self.kwargs,
+                    )
+                except FileNotFoundError:
+                    _logger.info(
+                        "File not found %s on storage %s (attempt %d)",
+                        new_store_fname,
+                        storage_code or "filesystem",
+                        attempt + 1,
+                    )
+                time.sleep(read_retry_delay)
         self._filesystem = filesystem
         self._new_store_fname = new_store_fname
         self._file = the_file

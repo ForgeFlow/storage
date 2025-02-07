@@ -521,3 +521,11 @@ class FsStorage(models.Model):
             max(storage.read_retry_attempts, 0) if storage else 0,
             max(storage.read_retry_delay, 0.0) if storage else 0.0,
         )
+
+    def get_read_retry_config_self(self):
+        """Return (retry_attempts, retry_delay) for a given self."""
+        storage = self
+        return (
+            max(storage.read_retry_attempts, 0) if storage else 0,
+            max(storage.read_retry_delay, 0.0) if storage else 0.0,
+        )

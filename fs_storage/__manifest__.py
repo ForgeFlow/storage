@@ -19,5 +19,6 @@
         "wizards/fs_test_connection.xml",
     ],
     "demo": ["demo/fs_storage_demo.xml"],
-    "external_dependencies": {"python": ["fsspec>=2024.5.0"]},
+    # "external_dependencies": {"python": ["fsspec>=2024.5.0"]},
+    "external_dependencies": {"python": ["fsspec"]},
 }

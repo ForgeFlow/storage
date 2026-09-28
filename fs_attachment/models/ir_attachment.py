@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import base64
 import io
 import logging
 import mimetypes
@@ -223,6 +224,32 @@ class IrAttachment(models.Model):
                 return len(bin_data) <= limit
         return False
 
+    def _fs_must_store_in_db(self, data, mimetype):
+        """Return whether the attachment must be stored in the database
+
+        When it is, it is processed with ``_storage()`` resolving to 'db', so
+        Odoo stores it in ``db_datas`` and does not write any file: since
+        Odoo 19, ``create`` and ``_set_attachment_data`` write the file after
+        ``_get_datas_related_values`` whenever the storage is not 'db'.
+        """
+        storage = self.env.context.get("storage_location") or self._storage()
+        return (
+            bool(data)
+            and storage in self._get_storage_codes()
+            and self._store_in_db_instead_of_object_storage(data, mimetype)
+        )
+
+    def _fs_vals_must_store_in_db(self, vals):
+        raw = vals.get("raw")
+        if isinstance(raw, str):
+            raw = raw.encode()
+        if not raw and vals.get("datas"):
+            raw = base64.b64decode(vals["datas"])
+        if not raw:
+            return False
+        mimetype = vals.get("mimetype") or self._compute_mimetype(vals)
+        return self._fs_must_store_in_db(raw, mimetype)
+
     def _get_datas_related_values(self, data, mimetype):
         values = super(
             IrAttachment, self.with_context(mimetype=mimetype)
@@ -253,6 +280,10 @@ class IrAttachment(models.Model):
     ###########################################################
     @api.model
     def _storage(self):
+        if self.env.context.get("fs_attachment_store_in_db"):
+            # attachments forced to the database by the storage rules, see
+            # _fs_must_store_in_db
+            return "db"
         # We check if a filesystem storage is configured for attachments
         storage = self.env["fs.storage"].get_default_storage_code_for_attachments()
         if not storage:
@@ -281,22 +312,32 @@ class IrAttachment(models.Model):
         is to pass them into the context, and perform 1 create call per record
         to create.
         """
-        vals_list_no_model = []
-        attachments = self.env["ir.attachment"]
-        for vals in vals_list:
+        record_ids = [None] * len(vals_list)
+        # attachments without res_model, split on whether they are forced to
+        # the database, as (index in vals_list, vals)
+        batches = {False: [], True: []}
+        for index, vals in enumerate(vals_list):
             if vals.get("res_model"):
-                attachment = super(
-                    IrAttachment,
-                    self.with_context(
-                        attachment_res_model=vals.get("res_model"),
-                        attachment_res_field=vals.get("res_field"),
-                    ),
-                ).create(vals)
-                attachments += attachment
+                model_self = self.with_context(
+                    attachment_res_model=vals.get("res_model"),
+                    attachment_res_field=vals.get("res_field"),
+                )
+                if model_self._fs_vals_must_store_in_db(vals):
+                    model_self = model_self.with_context(fs_attachment_store_in_db=True)
+                record_ids[index] = super(IrAttachment, model_self).create(vals).id
             else:
-                vals_list_no_model.append(vals)
-        atts = super().create(vals_list_no_model)
-        attachments |= atts
+                batches[self._fs_vals_must_store_in_db(vals)].append((index, vals))
+        for in_db, batch in batches.items():
+            if not batch:
+                continue
+            batch_self = (
+                self.with_context(fs_attachment_store_in_db=True) if in_db else self
+            )
+            records = super(IrAttachment, batch_self).create([v for __, v in batch])
+            for (index, __), record in zip(batch, records, strict=True):
+                record_ids[index] = record.id
+        # keep the order of vals_list
+        attachments = self.browse(record_ids)
         attachments._enforce_meaningful_storage_filename()
         return attachments
 
@@ -379,7 +420,23 @@ class IrAttachment(models.Model):
             super()._file_delete(fname)
 
     def _set_attachment_data(self, asbytes) -> None:  # pylint: disable=missing-return
-        super()._set_attachment_data(asbytes)
+        datas = {attach: asbytes(attach) for attach in self}
+        in_db = self.filtered(
+            lambda attach: attach._fs_must_store_in_db(datas[attach], attach.mimetype)
+        )
+        others = self - in_db
+        if others:
+            super(IrAttachment, others)._set_attachment_data(datas.__getitem__)
+        if in_db:
+            old_fnames = in_db.filtered("store_fname").mapped("store_fname")
+            super(
+                IrAttachment, in_db.with_context(fs_attachment_store_in_db=True)
+            )._set_attachment_data(datas.__getitem__)
+            # with the storage resolved to 'db', Odoo does not release the
+            # previous file: mark it for deletion as it would have done
+            in_db.flush_recordset(["store_fname"])
+            for fname in old_fnames:
+                self._file_delete(fname)
         self._enforce_meaningful_storage_filename()
 
     ##############################################
